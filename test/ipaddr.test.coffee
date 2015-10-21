@@ -59,6 +59,13 @@ module.exports =
       ipaddr.IPv4.parse('10.0.0.wtf')
     test.done()
 
+  'parse valid IPv4': (test) ->
+    addr = ipaddr.IPv4.parse('10.5.4.3')
+    test.deepEqual(addr.octets,     [10, 5, 4, 3])
+    test.equal(addr.ip,         '10.5.4.3')
+    test.deepEqual(addr.decimals,   168100867)
+    test.done()
+
   'matches IPv4 CIDR correctly': (test) ->
     addr = new ipaddr.IPv4([10, 5, 0, 1])
     test.equal(addr.match(ipaddr.IPv4.parse('0.0.0.0'), 0),   true)
@@ -247,10 +254,16 @@ module.exports =
     test.done()
 
   'correctly detects IPv4 and IPv6 CIDR addresses': (test) ->
-    test.deepEqual([ipaddr.IPv6.parse('fc00::'), 64],
-                   ipaddr.parseCIDR('fc00::/64'))
-    test.deepEqual([ipaddr.IPv4.parse('1.2.3.4'), 5],
-                   ipaddr.parseCIDR('1.2.3.4/5'))
+
+    ipv4CIDR = ipaddr.parseCIDR('1.2.3.4/5')
+    ipv6CIDR = ipaddr.parseCIDR('fc00::/64')
+
+
+    test.deepEqual(ipv4CIDR.address.ip,     '1.2.3.4')
+    test.deepEqual(ipv4CIDR.netmask.bits,   5)
+    test.deepEqual(ipv6CIDR.address.ip, 'fc00::')
+    test.deepEqual(ipv6CIDR.netmask.bits,   64)
+
     test.done()
 
   'does not consider a very large or very small number a valid IP address': (test) ->

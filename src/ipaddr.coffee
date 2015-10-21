@@ -52,6 +52,14 @@ class ipaddr.IPv4
         throw new Error "ipaddr: ipv4 octet is a byte"
 
     @octets = octets
+    @ip = @toString()
+
+    tmp = 0
+    tmp |= parseInt(@octets[0]) << 24
+    tmp |= parseInt(@octets[1]) << 16
+    tmp |= parseInt(@octets[2]) << 8
+    tmp |= parseInt(@octets[3])
+    @decimals = tmp >>> 0
 
   # The 'kind' method exists on both IPv4 and IPv6 classes.
   kind: ->
@@ -61,6 +69,7 @@ class ipaddr.IPv4
   toString: ->
     return @octets.join "."
 
+
   # Returns an array of byte-sized values in network order
   toByteArray: ->
     return @octets.slice(0) # octets.clone
@@ -68,7 +77,7 @@ class ipaddr.IPv4
   # Checks if this address matches other one within given CIDR range.
   match: (other, cidrRange) ->
     if cidrRange == undefined
-      [other, cidrRange] = other
+      [other, cidrRange] = [other.address, other.netmask.bits]
 
     if other.kind() != 'ipv4'
       throw new Error "ipaddr: cannot match ipv4 address with non-ipv4 one"
@@ -106,6 +115,7 @@ class ipaddr.IPv4
       [ new IPv4([240,   0,    0,   0]), 4  ]
     ]
 
+
   # Checks if the address corresponds to one of the special ranges.
   range: ->
     return ipaddr.subnetMatch(this, @SpecialRanges)
@@ -113,6 +123,55 @@ class ipaddr.IPv4
   # Convrets this IPv4 address to an IPv4-mapped IPv6 address.
   toIPv4MappedAddress: ->
     return ipaddr.IPv6.parse "::ffff:#{@toString()}"
+
+# IPv4 Netmask
+
+class ipaddr.IPv4Netmask
+  constructor: (bits) ->
+    @bits = parseInt(bits)
+    netmasks =
+      0: 0
+      1: 2147483648
+      2: 3221225472
+      3: 3758096384
+      4: 4026531840
+      5: 4160749568
+      6: 4227858432
+      7: 4261412864
+      8: 4278190080
+      9: 4286578688
+      10: 4290772992
+      11: 4292870144
+      12: 4293918720
+      13: 4294443008
+      14: 4294705152
+      15: 4294836224
+      16: 4294901760
+      17: 4294934528
+      18: 4294950912
+      19: 4294959104
+      20: 4294963200
+      21: 4294965248
+      22: 4294966272
+      23: 4294966784
+      24: 4294967040
+      25: 4294967168
+      26: 4294967232
+      27: 4294967264
+      28: 4294967280
+      29: 4294967288
+      30: 4294967292
+      31: 4294967294
+      32: 4294967295
+
+    @decimals = netmasks[@bits]
+
+    first = (@decimals >>> 24)  & 255
+    second = (@decimals >>> 16) & 255
+    third = (@decimals >>> 8) & 255
+    fourth = @decimals & 255
+
+    @ip = first + "." + second + "." + third + "." + fourth
 
 # A list of regular expressions that match arbitrary IPv4 addresses,
 # for which a number of weird notations exist.
@@ -143,6 +202,12 @@ ipaddr.IPv4.parser = (string) ->
   else
     return null
 
+
+# Create an IPv4 Netmask according to a given string
+ipaddr.IPv4.netmaskParser = (string) ->
+  return new ipaddr.IPv4Netmask(parseInt(string))
+
+
 # An IPv6 address (RFC2460)
 class ipaddr.IPv6
   # Constructs an IPv6 address from an array of eight 16-bit parts.
@@ -156,6 +221,7 @@ class ipaddr.IPv6
         throw new Error "ipaddr: ipv6 part should fit to two octets"
 
     @parts = parts
+    @ip = @toString()
 
   # The 'kind' method exists on both IPv4 and IPv6 classes.
   kind: ->
@@ -215,7 +281,7 @@ class ipaddr.IPv6
   # Checks if this address matches other one within given CIDR range.
   match: (other, cidrRange) ->
     if cidrRange == undefined
-      [other, cidrRange] = other
+      [other, cidrRange] = [other.address, other.netmask.bits]
 
     if other.kind() != 'ipv6'
       throw new Error "ipaddr: cannot match ipv6 address with non-ipv6 one"
@@ -255,6 +321,58 @@ class ipaddr.IPv6
     [high, low] = @parts[-2..-1]
 
     return new ipaddr.IPv4([high >> 8, high & 0xff, low >> 8, low & 0xff])
+
+
+# Basic IPv6 Netmask
+# We won't need other information for now
+class ipaddr.IPv6Netmask
+  constructor: (bits) ->
+    @bits = parseInt(bits)
+
+
+# IPv4 and IPv6 CIDR
+class ipaddr.IPv4CIDR
+  constructor: (address, netmask) ->
+    @address = address
+    @netmask = netmask
+
+    netIpDec = (@address.decimals & @netmask.decimals) >>> 0
+
+    @IPNumber = 0xFFFFFFFF - 1 - @netmask.decimals
+
+    if (@IPNumber == -1 || @IPNumber == 0)
+
+      if @IPNumber == -1
+        @IPNumber = 1
+        @lastIP = @firstIP = @decimalToString(netIpDec)
+      else
+        @IPNumber = 2
+        @firstIP = @decimalToString(netIpDec)
+        @lastIP = @decimalToString(netIpDec + 1)
+
+    else
+      @firstIP = @decimalToString(netIpDec + 1)
+      @lastIP = @decimalToString(netIpDec + @IPNumber)
+
+  kind: ->
+    return 'ipv4cidr'
+
+  decimalToString:(netIpDec) ->
+    first = (netIpDec >>> 24) & 255
+    second = (netIpDec >>> 16) & 255
+    third = (netIpDec >>> 8) & 255
+    fourth = netIpDec & 255
+
+    return first + "." + second + "." + third + "." + fourth
+
+class ipaddr.IPv6CIDR
+  constructor: (address, netmask) ->
+    @address = address
+    @netmask = netmask
+
+  kind: ->
+    return 'ipv6cidr'
+
 
 # IPv6-matching regular expressions.
 # For IPv6, the task is simpler: it is enough to match the colon-delimited
@@ -316,6 +434,11 @@ ipaddr.IPv6.parser = (string) ->
 
   return null
 
+# Basic method to convert a string into an IPv6 Netmask
+ipaddr.IPv6.netmaskParser = (string) ->
+  return new ipaddr.IPv6Netmask(parseInt(string))
+
+
 # Checks if a given string is formatted like IPv4/IPv6 address.
 ipaddr.IPv4.isIPv4 = ipaddr.IPv6.isIPv6 = (string) ->
   return @parser(string) != null
@@ -342,6 +465,7 @@ ipaddr.IPv6.isValid = (string) ->
 
 # Tries to parse and validate a string with IPv4/IPv6 address.
 # Throws an error if it fails.
+
 ipaddr.IPv4.parse = ipaddr.IPv6.parse = (string) ->
   parts = @parser(string)
   if parts == null
@@ -349,11 +473,25 @@ ipaddr.IPv4.parse = ipaddr.IPv6.parse = (string) ->
 
   return new this(parts)
 
-ipaddr.IPv4.parseCIDR = ipaddr.IPv6.parseCIDR = (string) ->
+ipaddr.IPv4.parseNetmask = ipaddr.IPv6.parseNetmask = (string) ->
+  return @netmaskParser(string)
+
+ipaddr.IPv4.parseCIDR = (string) ->
   if match = string.match(/^(.+)\/(\d+)$/)
-    return [@parse(match[1]), parseInt(match[2])]
+    address = @parse(match[1])
+    netmask = @parseNetmask(match[2])
+    return new ipaddr.IPv4CIDR(address, netmask)
 
   throw new Error "ipaddr: string is not formatted like a CIDR range"
+
+ipaddr.IPv6.parseCIDR = (string) ->
+  if match = string.match(/^(.+)\/(\d+)$/)
+    address = @parse(match[1])
+    netmask = @parseNetmask(match[2])
+    return new ipaddr.IPv6CIDR(address, netmask)
+
+  throw new Error "ipaddr: string is not formatted like a CIDR range"
+
 
 # Checks if the address is valid IP address
 ipaddr.isValid = (string) ->
@@ -372,10 +510,10 @@ ipaddr.parseCIDR = (string) ->
   try
     return ipaddr.IPv6.parseCIDR(string)
   catch e
-    try
-      return ipaddr.IPv4.parseCIDR(string)
-    catch e
-      throw new Error "ipaddr: the address has neither IPv6 nor IPv4 CIDR format"
+    # try
+    return ipaddr.IPv4.parseCIDR(string)
+    # catch e
+    #   throw new Error "ipaddr: the address has neither IPv6 nor IPv4 CIDR format"
 
 # Parse an address and return plain IPv4 address if it is an IPv4-mapped address
 ipaddr.process = (string) ->
