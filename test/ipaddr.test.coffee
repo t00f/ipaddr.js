@@ -62,8 +62,16 @@ module.exports =
   'parse valid IPv4': (test) ->
     addr = ipaddr.IPv4.parse('10.5.4.3')
     test.deepEqual(addr.octets,     [10, 5, 4, 3])
-    test.equal(addr.ip,         '10.5.4.3')
+    test.equal(addr.ip,             '10.5.4.3')
     test.deepEqual(addr.decimals,   168100867)
+    test.done()
+
+  'parse valid IPv4 CIDR': (test) ->
+    CIDR = ipaddr.parseCIDR('10.5.4.3/255.255.255.0')
+
+    test.deepEqual(CIDR.address.octets,     [10, 5, 4, 3])
+    test.deepEqual(CIDR.netmask.ip,         '255.255.255.0')
+    test.deepEqual(CIDR.netmask.bits,        24)
     test.done()
 
   'matches IPv4 CIDR correctly': (test) ->
@@ -94,6 +102,12 @@ module.exports =
     test.equal(addr.match(ipaddr.IPv4.parseCIDR('10.5.0.1/32')), true)
     test.throws ->
       ipaddr.IPv4.parseCIDR('10.5.0.1')
+
+    CIDR = ipaddr.IPv4.parseCIDR('10.5.0.1/24')
+    test.equal(CIDR.netmask.bits, 24)
+    test.equal(CIDR.netmask.decimals, 4294967040)
+    test.equal(CIDR.netmask.ip, '255.255.255.0')
+
     test.done()
 
   'detects reserved IPv4 networks': (test) ->
@@ -149,6 +163,7 @@ module.exports =
     test.done()
 
   'validates IPv6 addresses': (test) ->
+    test.equal(ipaddr.IPv6.isValid(null),                   false)
     test.equal(ipaddr.IPv6.isValid('2001:db8:F53A::1'),     true)
     test.equal(ipaddr.IPv6.isValid('200001::1'),            false)
     test.equal(ipaddr.IPv6.isValid('::ffff:192.168.1.1'),   true)
@@ -257,7 +272,6 @@ module.exports =
 
     ipv4CIDR = ipaddr.parseCIDR('1.2.3.4/5')
     ipv6CIDR = ipaddr.parseCIDR('fc00::/64')
-
 
     test.deepEqual(ipv4CIDR.address.ip,     '1.2.3.4')
     test.deepEqual(ipv4CIDR.netmask.bits,   5)
